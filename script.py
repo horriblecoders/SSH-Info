@@ -2,7 +2,8 @@
 
 import re
 
-logfile = '/var/log/auth.log'
+logfile = 'logfile'
+output = 'script.html'
 
 
 def find_ip(str):
@@ -18,7 +19,7 @@ def find_user(line):
     user = user[1].split(' ')
     return user
 
-def find_good_ips():
+def find_good_ips(): #return html list of connected ips
     f = open(logfile,'r')
     contents = f.readlines()
     f.close()
@@ -26,13 +27,18 @@ def find_good_ips():
     for line in contents:
         if 'sshd' in line:
             if 'accepted' in line.lower():
-                print(find_ip(line)[0])
                 good_ips.add(find_ip(line)[0])
+
+    #Create html
+    html = '<h1>List of IPs that have connected:</h1>\n<ul>\n'
+    for ip in good_ips:
+        html += '<li>' + str(ip) + '</li>\n'
+    html += '</ul>\n'
                 
-    return good_ips
+    return html
 
 
-def find_bad_ips(): #return dict of bad ips and count of attempts
+def find_bad_ips(): #return table of bad IP's and attempt count
     f = open(logfile,'r')
     contents = f.readlines()
     f.close()
@@ -48,38 +54,41 @@ def find_bad_ips(): #return dict of bad ips and count of attempts
         else:
             ip_d[ip] += 1
             
-    #outputs!
-    print(ip_d)
+    #Create html
+    html = '<h1>Attempted IP Logins:</h1>\n<table>\n<th>IP</th><th>Attempts</th>\n'
     for w in sorted(ip_d, key=ip_d.get, reverse=True):
-        print(w, ip_d[w])  
+        html += '<tr><td>' + str(w) + '</td><td>' + str(ip_d[w]) + '</td></tr>\n'
+    html += '</table>' 
         
-    return ip_d
+    return html
 
 
-def find_bad_users(): #return dict of attempted user logins and count of attempts
+def find_bad_users(): #return table of failed usernames and counts
     f = open(logfile,'r')
     contents = f.readlines()
     f.close()
-    users = {}
+    user_d = {}
     usernames = []
     for line in contents:
         if 'sshd' in line:
             if 'failed' in line.lower():
                 usernames.append(find_user(line)[0])
     for username in usernames:
-        if not username in users:
-            users[username] = 1
+        if not username in user_d:
+            user_d[username] = 1
         else:
-            users[username] += 1
+            user_d[username] += 1
             
-    #outputs!        
-    print(users)
-    for w in sorted(users, key=users.get, reverse=True):
-        print(w, users[w])
-    return users
+    #Create html
+    html = '<h1>Attempted Username Logins:</h1>\n<table>\n<th>Username</th><th>Attempts</th>\n'
+    for w in sorted(user_d, key=user_d.get, reverse=True):
+        html += '<tr><td>' + str(w) + '</td><td>' + str(user_d[w]) + '</td></tr>\n'
+    html += '</table>'
+
+    return html
 
 
-def find_fun_msgs(): #Return a UNIQUE list of disconnect messages
+def find_fun_msgs(): #Return an html list of unique disconnect messages
     f = open(logfile,'r')
     contents = f.readlines()
     f.close()
@@ -92,54 +101,29 @@ def find_fun_msgs(): #Return a UNIQUE list of disconnect messages
                 line = line.split('[preauth]')[0]
                 if line.upper().isupper():
                     messages.add(line)
+    html = '<h1>List of Disconnect Messages</h1>\n<ul>\n'
+    for msg in messages:
+        html += '<li>' + str(msg) + '</li>\n'
+    html += '</ul>\n'
                     
-    
-    print(messages)
-    return messages
+    return html
 
+
+
+#Run html generators
 bad_ips = find_bad_ips()
 bad_users = find_bad_users()
-bad_msgs = find_fun_msgs()
+fun_msgs = find_fun_msgs()
+good_ips = find_good_ips()
 
-html = '''
-<html>
-
-<h1>Attempted username logins:<h1>
-<table>
-<tr><td>Username</td><td>Attempts</td></tr>
-'''
-bad_users_string = ''
-for w in sorted(bad_users, key=bad_users.get, reverse=True):
-    bad_users_string += '<tr><td>' + str(w) + '</td><td>' + str(bad_users[w]) + '</td></tr>\n'
-    #print(w, bad_users[w])
-
-html += bad_users_string
-html += '</table>'
-html += '''
-<h1>IP's and attempts to login:</h1>
-<table>
-<tr><td>IP</td><td>Attempts</td></tr>
-'''
-bad_ips_string = ''
-for w in sorted(bad_ips, key=bad_ips.get, reverse=True):
-    bad_ips_string += '<tr><td>' + str(w) + '</td><td>' + str(bad_ips[w]) + '</td></tr>\n'
-html += bad_ips_string
-html += '</table>'
-
-html+= '''
-<h1>List of disconnect messages:</h1>
-<table>
-'''
-messages = ''
-for msg in bad_msgs:
-    messages += '<tr><td>' + str(msg) + '</td></tr>\n'
-    
-html += messages
-html += '</table>'
+#Create html page from generators
+html = '<html>\n'
+html += bad_users + bad_ips + fun_msgs + good_ips
 html += '</html>'
 
-
 #Write HTML file
-f = open('script.html','w')
+f = open(output,'w')
 f.write(html)
 f.close()
+
+print('Done!')
